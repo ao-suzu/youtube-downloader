@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from flask import Flask, render_template, request, send_file, jsonify
+from flask import Flask, render_template, request, send_file, jsonify, session, redirect, url_for
 from flask_socketio import SocketIO, emit
 import yt_dlp
 import os
@@ -9,11 +9,25 @@ from threading import Thread
 import uuid
 
 app = Flask(__name__)
+app.secret_key = 'your-secret-key-change-this'
 socketio = SocketIO(app, cors_allowed_origins="*")
 progress_data = {}
 
+PASSWORD = os.environ.get('ACCESS_PASSWORD', 'admin123')  # 環境変数で設定可能
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        if request.form['password'] == PASSWORD:
+            session['authenticated'] = True
+            return redirect(url_for('index'))
+        return 'パスワードが違います'
+    return '<form method="post">パスワード: <input type="password" name="password"><button>ログイン</button></form>'
+
 @app.route('/')
 def index():
+    if not session.get('authenticated'):
+        return redirect(url_for('login'))
     return render_template('index.html')
 
 def progress_hook(d, task_id, total_count):
