@@ -1,0 +1,5 @@
+yt-dlp
+flask
+flask-socketio
+gunicorn
+eventlet

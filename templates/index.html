@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Downloader</title>
+    <meta charset="utf-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+    <h1>Video Downloader</h1>
+    <form id="downloadForm">
+        <div>
+            <label>URL:</label><br>
+            <input type="url" id="url" required style="width:400px">
+        </div><br>
+        
+        <div>
+            <label>画質:</label><br>
+            <select id="quality">
+                <option value="1">最高画質</option>
+                <option value="2">720p</option>
+                <option value="3">480p</option>
+            </select>
+        </div><br>
+        
+        <div>
+            <label>形式:</label><br>
+            <select id="format">
+                <option value="1">MP4 (動画)</option>
+                <option value="2">MP3 (音声のみ)</option>
+            </select>
+        </div><br>
+        
+        <button type="submit">ダウンロード</button>
+    </form>
+    
+    <div id="status"></div>
+    <div id="progress"></div>
+    <div id="completed-files">
+        <h3>完了ファイル:</h3>
+        <ul id="file-list"></ul>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentTaskId = null;
+        let completedFiles = [];
+        
+        socket.on('progress', function(data) {
+            if (data.task_id !== currentTaskId) return;
+            
+            const status = document.getElementById('status');
+            const progress = document.getElementById('progress');
+            const fileList = document.getElementById('file-list');
+            
+            if (data.status === 'downloading') {
+                status.innerHTML = 'ダウンロード中...';
+                progress.innerHTML = `${data.progress} - 速度: ${data.speed}`;
+            } else if (data.status === 'finished') {
+                completedFiles.push(data.filename);
+                const li = document.createElement('li');
+                li.textContent = data.filename;
+                fileList.appendChild(li);
+            } else if (data.status === 'completed') {
+                status.innerHTML = 'ダウンロード完了!';
+                progress.innerHTML = `${data.file_count}個のファイルを処理しました`;
+                
+                // ファイルダウンロード
+                window.location.href = '/get_file/' + currentTaskId;
+            } else if (data.status === 'error') {
+                status.innerHTML = 'エラー: ' + data.error;
+                progress.innerHTML = '';
+            }
+        });
+        
+        document.getElementById('downloadForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const status = document.getElementById('status');
+            const progress = document.getElementById('progress');
+            const fileList = document.getElementById('file-list');
+            status.innerHTML = 'ダウンロード開始...';
+            progress.innerHTML = '';
+            fileList.innerHTML = '';
+            completedFiles = [];
+            
+            fetch('/start_download', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    url: document.getElementById('url').value,
+                    quality: document.getElementById('quality').value,
+                    format: document.getElementById('format').value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                currentTaskId = data.task_id;
+            })
+            .catch(error => {
+                status.innerHTML = 'エラー: ' + error;
+            });
+        };
+    </script>
+</body>
+</html>
