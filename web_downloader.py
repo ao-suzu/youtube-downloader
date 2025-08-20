@@ -30,29 +30,29 @@ def index():
         return redirect(url_for('login'))
     return render_template('index.html')
 
-def progress_hook(d, task_id, total_count):
+def progress_hook(d, task_id):
     if d['status'] == 'downloading':
         speed = d.get('_speed_str', 'N/A')
         playlist_index = d.get('playlist_index', 1)
         
-        progress_text = f"{playlist_index}/{total_count}"
+        if not progress_data[task_id]['started']:
+            progress_data[task_id]['started'] = True
+            socketio.emit('progress', {'task_id': task_id, 'status': 'started'})
         
         socketio.emit('progress', {
             'task_id': task_id,
             'status': 'downloading',
-            'progress': progress_text,
+            'progress': f"#{playlist_index}",
             'speed': speed
         })
     elif d['status'] == 'finished':
         filename = os.path.basename(d.get('filename', ''))
         progress_data[task_id]['completed_count'] += 1
-        completed = progress_data[task_id]['completed_count']
         
         socketio.emit('progress', {
             'task_id': task_id,
             'status': 'finished',
-            'filename': filename,
-            'completed': f"{completed}/{total_count}"
+            'filename': filename
         })
 
 @app.route('/start_download', methods=['POST'])
@@ -89,13 +89,13 @@ def start_download():
         
         template = '%(title)s.%(ext)s' if url_type == 'single' else '%(playlist_index)03d - %(title)s.%(ext)s'
         
-        def progress_hook_with_count(d):
-            progress_hook(d, task_id, total_count)
+        def progress_hook_with_id(d):
+            progress_hook(d, task_id)
         
         ydl_opts = {
             'outtmpl': f'{temp_dir}/{template}',
             'format': format_map.get(format_choice, "best"),
-            'progress_hooks': [progress_hook_with_count]
+            'progress_hooks': [progress_hook_with_id]
         }
         
         if format_choice == "2":
